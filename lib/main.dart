@@ -1,163 +1,168 @@
-// MIT License
-//
-// Copyright (c) 2024 Simon Lightfoot
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:geocoding/geocoding.dart';
 
 void main() {
-  runApp(App());
+  runApp(_GeocodingExample());
 }
 
-/// ```dart
-/// const splitter = LineSplitter();
-/// const sampleText =
-///     'Dart is: \r an object-oriented \n class-based \n garbage-collected '
-///     '\r\n language with C-style syntax \r\n';
-///
-/// final sampleTextLines = splitter.convert(sampleText);
-/// for (var i = 0; i < sampleTextLines.length; i++) {
-///   print('$i: ${sampleTextLines[i]}');
-/// }
-/// // 0: Dart is:
-/// // 1:  an object-oriented
-/// // 2:  class-based
-/// // 3:  garbage-collected
-/// // 4:  language with C-style syntax
-///
-class MeetupsDatabase {
-  MeetupsDatabase._();
-
-  late List<MeetupsEntry> entries;
-
-  static Future<MeetupsDatabase> create() async {
-    final instance = MeetupsDatabase._();
-    await instance.load();
-    return instance;
-  }
-
-  Future<void> load() async {
-    final data = await rootBundle.loadString('assets/meetups.jsonl');
-    final lines = LineSplitter().convert(data);
-    final entries = <MeetupsEntry>[];
-    for (final line in lines) {
-      final map = json.decode(line);
-      entries.add(MeetupsEntry.fromJson(map));
-    }
-    this.entries = entries;
-  }
-}
-
-class MeetupsEntry {
-  const MeetupsEntry({
-    required this.link,
-    required this.name,
-    required this.location,
-  });
-
-  final String link;
-  final String name;
-  final String location;
-
-  static MeetupsEntry fromJson(Map<String, dynamic> json) {
-    return MeetupsEntry(
-      link: json['link'] as String,
-      name: json['name'] as String,
-      location: json['location'] as String,
-    );
-  }
-}
-
-class App extends StatefulWidget {
-  const App({super.key});
-
+/// Example [Widget] showing the use of the Geocode plugin
+class GeocodeWidget extends StatefulWidget {
   @override
-  State<App> createState() => _AppState();
+  _GeocodeWidgetState createState() => _GeocodeWidgetState();
 }
 
-class _AppState extends State<App> {
-  late Future<MeetupsDatabase> _dbFuture;
-
-  MeetupsDatabase? database;
-  void test() {
-    const splitter = LineSplitter();
-    const sampleText =
-        'Dart is: \r an object-oriented \n class-based \n garbage-collected '
-        '\r\n language with C-style syntax \r\n';
-
-    final sampleTextLines = splitter.convert(sampleText);
-    for (var i = 0; i < sampleTextLines.length; i++) {
-      print('$i: ${sampleTextLines[i]}');
-    }
-  }
-
+class _GeocodeWidgetState extends State<GeocodeWidget> {
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _latitudeController = TextEditingController();
+  final TextEditingController _longitudeController = TextEditingController();
+  String _output = '';
+  double currentLat = 12.912390922531637; // Latitude of your current location
+  double currentLon = 77.64005750468513;
   @override
   void initState() {
+    _addressController.text = 'Gronausestraat 710, Enschede';
+    _latitudeController.text = '52.2165157';
+    _longitudeController.text = '6.9437819';
+
     super.initState();
-    _dbFuture = MeetupsDatabase.create().then((db) => database = db);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: _dbFuture,
-      builder: (BuildContext context, AsyncSnapshot<MeetupsDatabase> snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: Center(child: CircularProgressIndicator.adaptive()),
-          );
-        }
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: Home(database: snapshot.requireData),
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: <Widget>[
+          const Padding(padding: EdgeInsets.only(top: 32)),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  autocorrect: false,
+                  controller: _latitudeController,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  decoration: InputDecoration(hintText: 'Latitude'),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+              SizedBox(width: 20),
+              Expanded(
+                child: TextField(
+                  autocorrect: false,
+                  controller: _longitudeController,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  decoration: InputDecoration(hintText: 'Longitude'),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const Padding(padding: EdgeInsets.only(top: 8)),
+          Center(
+            child: ElevatedButton(
+              child: Text('Look up address'),
+              onPressed: () {
+                final latitude = double.parse(_latitudeController.text);
+                final longitude = double.parse(_longitudeController.text);
+
+                placemarkFromCoordinates(currentLat, currentLon).then((
+                  placemarks,
+                ) {
+                  var output = 'No results found.';
+                  if (placemarks.isNotEmpty) {
+                    output = placemarks[0].toString();
+                  }
+
+                  setState(() {
+                    _output = output;
+                  });
+                });
+              },
+            ),
+          ),
+          const Padding(padding: EdgeInsets.only(top: 32)),
+          TextField(
+            autocorrect: false,
+            controller: _addressController,
+            style: Theme.of(context).textTheme.bodyMedium,
+            decoration: InputDecoration(hintText: 'Address'),
+            keyboardType: TextInputType.text,
+          ),
+          const Padding(padding: EdgeInsets.only(top: 8)),
+          Center(
+            child: ElevatedButton(
+              child: Text('Look up location'),
+              onPressed: () {
+                locationFromAddress(_addressController.text).then((locations) {
+                  var output = 'No results found.';
+                  if (locations.isNotEmpty) {
+                    output = locations[0].toString();
+                  }
+                  setState(() {
+                    _output = output;
+                  });
+                });
+              },
+            ),
+          ),
+          const Padding(padding: EdgeInsets.only(top: 8)),
+          Center(
+            child: ElevatedButton(
+              child: Text('is Present'),
+              onPressed: () {
+                isPresent().then((isPresent) {
+                  var output = isPresent ? 'Is present' : 'Is not present';
+                  setState(() {
+                    _output = output;
+                  });
+                });
+              },
+            ),
+          ),
+          const Padding(padding: EdgeInsets.only(top: 8)),
+          Center(
+            child: ElevatedButton(
+              child: Text('Set locale en_US'),
+              onPressed: () {
+                // setLocaleIdentifier("en_US").then((_) {
+                //   setState(() {});
+                // });
+              },
+            ),
+          ),
+          const Padding(padding: EdgeInsets.only(top: 8)),
+          Center(
+            child: ElevatedButton(
+              child: Text('Set locale nl_NL'),
+              onPressed: () {
+                // setLocaleIdentifier("nl_NL").then((_) {
+                //   setState(() {});
+                // });
+              },
+            ),
+          ),
+          const Padding(padding: EdgeInsets.only(top: 8)),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Container(
+                width: MediaQuery.of(context).size.width,
+                child: Text(_output),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class Home extends StatelessWidget {
-  const Home({super.key, required this.database});
-
-  final MeetupsDatabase database;
+class _GeocodingExample extends StatelessWidget {
+  const _GeocodingExample({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      child: ListView.builder(
-        itemCount: database.entries.length,
-        itemBuilder: (BuildContext context, int index) {
-          final entry = database.entries[index];
-          return ListTile(
-            onTap: () {
-              print('Open ${entry.link}');
-            },
-            title: Text(entry.name),
-            subtitle: Text(entry.location),
-          );
-        },
-      ),
-    );
+    return MaterialApp(home: Scaffold(body: Material(child: GeocodeWidget())));
   }
 }
