@@ -11,6 +11,8 @@
 /// Request: Can you help to rectify this issue, ensuring that only the new text (`newText`) shows
 /// the fade effect, while the `previousText` remains static?
 ///
+library;
+
 import 'package:flutter/material.dart';
 
 void main() {
